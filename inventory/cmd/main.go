@@ -3,9 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"log"
 	"net"
 	"os"
@@ -15,15 +12,20 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/brianvoe/gofakeit/v7"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	inventoryV1 "github.com/Igorezka/rocket-factory/shared/pkg/proto/inventory/v1"
 )
 
 const grpcPort = 50051
 
+// inventoryService реализует gRPC сервис для работы с деталями
 type inventoryService struct {
 	inventoryV1.UnimplementedInventoryServiceServer
 
@@ -31,6 +33,7 @@ type inventoryService struct {
 	parts map[string]*inventoryV1.Part
 }
 
+// GetPart возвращает деталь по UUID
 func (s *inventoryService) GetPart(_ context.Context, req *inventoryV1.GetPartRequest) (*inventoryV1.GetPartResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -45,6 +48,8 @@ func (s *inventoryService) GetPart(_ context.Context, req *inventoryV1.GetPartRe
 	}, nil
 }
 
+// ListParts возвращает список деталей соответствующих переданным фильтрам
+// или возвращает все детали если фильтры не переданы
 func (s *inventoryService) ListParts(_ context.Context, req *inventoryV1.ListPartsRequest) (*inventoryV1.ListPartsResponse, error) {
 	s.mu.RLock()
 	parts := s.parts
@@ -52,35 +57,56 @@ func (s *inventoryService) ListParts(_ context.Context, req *inventoryV1.ListPar
 
 	var data []*inventoryV1.Part
 
+	// Бежим по всем деталям и проверяем их на соответствие фильтрам
 	for _, part := range parts {
-		if len(req.GetFilter().GetUuids()) > 0 {
-			if !slices.Contains(req.GetFilter().GetUuids(), part.Uuid) {
+		// Для лучшей производительности вместо slices.Contains можно использовать просто for
+		if len(req.GetFilter().GetUuids()) > 0 && !slices.Contains(req.GetFilter().GetUuids(), part.Uuid) {
+			continue
+		}
+
+		if len(req.GetFilter().GetNames()) > 0 && !slices.Contains(req.GetFilter().GetNames(), part.Name) {
+			continue
+		}
+
+		if len(req.GetFilter().GetCategories()) > 0 &&
+			!slices.Contains(req.GetFilter().GetCategories(), part.Category) {
+			continue
+		}
+
+		if len(req.GetFilter().GetManufacturerCountries()) > 0 &&
+			!slices.Contains(req.GetFilter().GetManufacturerCountries(), part.Manufacturer.Country) {
+			continue
+		}
+
+		if len(req.GetFilter().GetTags()) > 0 {
+			// Отсеиваем если у детали нет тегов
+			if len(part.Tags) == 0 {
+				continue
+			}
+
+			// Флаг соответствия
+			contains := true
+
+			// Бежим по всем переданным тегам и проверяем их наличие у детали, если тега нет прерываем цикл
+			// и устанавливаем отрицательный флаг
+			for _, tag := range req.GetFilter().GetTags() {
+				if !slices.Contains(part.Tags, tag) {
+					contains = false
+					break
+				}
+			}
+
+			// Проверяем флаг
+			if !contains {
 				continue
 			}
 		}
 
-		if len(req.GetFilter().GetNames()) > 0 {
-			if !slices.Contains(req.GetFilter().GetNames(), part.Name) {
-				continue
-			}
-		}
-
-		if len(req.GetFilter().GetCategories()) > 0 {
-			if !slices.Contains(req.GetFilter().GetCategories(), part.Category) {
-				continue
-			}
-		}
-
-		if len(req.GetFilter().GetManufacturerCountries()) > 0 {
-			if !slices.Contains(req.GetFilter().GetManufacturerCountries(), part.Manufacturer.Country) {
-				continue
-			}
-		}
-
+		// добавляем деталь в слайс соответствующих деталей
 		data = append(data, part)
 	}
 
-	if len(data) <= 0 {
+	if len(data) == 0 {
 		return nil, status.Errorf(codes.NotFound, "no parts found")
 	}
 
@@ -100,67 +126,17 @@ func main() {
 		}
 	}()
 
+	// Создаем gRPC сервер
 	s := grpc.NewServer()
 
+	// Регистрируем сервис и заполняем тестовые детали
 	service := &inventoryService{
-		parts: map[string]*inventoryV1.Part{
-			uuid.NewString(): {
-				Uuid:          uuid.NewString(),
-				Name:          "Двигатель",
-				Description:   "Обычный ракетный двигатель",
-				Price:         1000,
-				StockQuantity: 3,
-				Category:      inventoryV1.Category_CATEGORY_ENGINE,
-				Dimensions: &inventoryV1.Dimensions{
-					Length: 1000,
-					Width:  500,
-					Height: 390,
-					Weight: 104,
-				},
-				Manufacturer: &inventoryV1.Manufacturer{
-					Name:    "Очаково",
-					Country: "USA",
-					Website: "https://ochakovo.ru",
-				},
-				Tags: []string{"двигатель", "очаково", "usa"},
-				Metadata: map[string]*inventoryV1.Value{
-					"meta": {
-						ValueType: &inventoryV1.Value_StringValue{StringValue: "не понял для чего"},
-					},
-				},
-				CreatedAt: timestamppb.New(time.Now()),
-			},
-			uuid.NewString(): {
-				Uuid:          uuid.NewString(),
-				Name:          "Крыло",
-				Description:   "Обычный крыло",
-				Price:         500,
-				StockQuantity: 2,
-				Category:      inventoryV1.Category_CATEGORY_WING,
-				Dimensions: &inventoryV1.Dimensions{
-					Length: 10,
-					Width:  53,
-					Height: 391.2,
-					Weight: 1,
-				},
-				Manufacturer: &inventoryV1.Manufacturer{
-					Name:    "Троекурово",
-					Country: "Russia",
-					Website: "https://example.com",
-				},
-				Tags: []string{"крыло", "троекурово", "russia"},
-				Metadata: map[string]*inventoryV1.Value{
-					"meta": {
-						ValueType: &inventoryV1.Value_StringValue{StringValue: "не понял для чего"},
-					},
-				},
-				CreatedAt: timestamppb.New(time.Now()),
-			},
-		},
+		parts: fillTestData(4),
 	}
 
 	inventoryV1.RegisterInventoryServiceServer(s, service)
 
+	// Включаем рефлексию для отладки
 	reflection.Register(s)
 
 	go func() {
@@ -179,4 +155,61 @@ func main() {
 	log.Println("🛑 Shutting down gRPC server...")
 	s.GracefulStop()
 	log.Println("✅ Server stopped")
+}
+
+// fillTestData генерирует тестовые данные
+func fillTestData(count int) map[string]*inventoryV1.Part {
+	data := make(map[string]*inventoryV1.Part)
+
+	for i := 0; i < count; i++ {
+		id := uuid.NewString()
+		// Сделал так потому что линтер при использовании inventoryV1.Category(gofakeit.IntRange(0, 4))
+		// выкидывает ошибку gosec G115 int <- int32
+		category := func() inventoryV1.Category {
+			c := gofakeit.IntRange(0, 4)
+
+			switch c {
+			case 1:
+				return inventoryV1.Category_CATEGORY_ENGINE
+			case 2:
+				return inventoryV1.Category_CATEGORY_FUEL
+			case 3:
+				return inventoryV1.Category_CATEGORY_PORTHOLE
+			case 4:
+				return inventoryV1.Category_CATEGORY_WING
+			}
+
+			return inventoryV1.Category_CATEGORY_UNKNOWN_UNSPECIFIED
+		}()
+
+		part := &inventoryV1.Part{
+			Uuid:          id,
+			Name:          gofakeit.Name(),
+			Description:   gofakeit.Name(),
+			Price:         gofakeit.Float64(),
+			StockQuantity: gofakeit.Int64(),
+			Category:      category,
+			Dimensions: &inventoryV1.Dimensions{
+				Length: gofakeit.Float64(),
+				Width:  gofakeit.Float64(),
+				Height: gofakeit.Float64(),
+				Weight: gofakeit.Float64(),
+			},
+			Manufacturer: &inventoryV1.Manufacturer{
+				Name:    gofakeit.Company(),
+				Country: gofakeit.Country(),
+				Website: gofakeit.URL(),
+			},
+			Tags: []string{gofakeit.Name(), gofakeit.Company(), gofakeit.Country()},
+			Metadata: map[string]*inventoryV1.Value{
+				"name": {
+					ValueType: &inventoryV1.Value_StringValue{StringValue: gofakeit.Name()},
+				},
+			},
+			CreatedAt: timestamppb.New(time.Now()),
+		}
+		data[id] = part
+	}
+
+	return data
 }

@@ -1,0 +1,16 @@
+type: object
+required:
+  - order_uuid
+  - total_price
+properties:
+  order_uuid:
+    type: string
+    description: Уникальный идентификатор заказа
+    minLength: 1
+    maxLength: 100
+    example: "0fd4e862-8fbd-4b71-9b92-67a692c19f45"
+  total_price:
+    type: number
+    format: double
+    description: Итоговая стоимость
+    example: 1351.34

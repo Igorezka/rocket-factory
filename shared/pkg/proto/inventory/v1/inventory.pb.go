@@ -24,19 +24,19 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Category категория к которй принадлежит деталь
+// Category категория к которой принадлежит деталь
 type Category int32
 
 const (
-	// CATEGORY_UNKNOWN_UNSPECIFIED неизвестная категория
+	// UNKNOWN неизвестная категория
 	Category_CATEGORY_UNKNOWN_UNSPECIFIED Category = 0
-	// CATEGORY_ENGINE двигатель
+	// ENGINE двигатель
 	Category_CATEGORY_ENGINE Category = 1
-	// CATEGORY_FUEL топливо
+	// FUEL топливо
 	Category_CATEGORY_FUEL Category = 2
-	// CATEGORY_PORTHOLE иллюминатор
+	// PORTHOLE иллюминатор
 	Category_CATEGORY_PORTHOLE Category = 3
-	// CATEGORY_WING крыло
+	// WING крыло
 	Category_CATEGORY_WING Category = 4
 )
 
@@ -486,7 +486,7 @@ func (x *Part) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-// PartsFilter фильтр с опциональными полями по каторым детали могут быть отфильтрованы
+// PartsFilter фильтр с опциональными полями по которым детали могут быть отфильтрованы
 type PartsFilter struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// uuids список UUID'ов. Пусто — не фильтруем по UUID
@@ -617,7 +617,7 @@ func (x *GetPartRequest) GetUuid() string {
 // GetPartResponse ответ на запрос получения детали по уникальному идентификатору
 type GetPartResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// part полная игформация о детали
+	// part полная информация о детали
 	Part          *Part `protobuf:"bytes,1,opt,name=part,proto3" json:"part,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -660,7 +660,7 @@ func (x *GetPartResponse) GetPart() *Part {
 	return nil
 }
 
-// ListPartsRequest запрос на получения списка деталей отфильрованных по опцианальному фильтру,
+// ListPartsRequest запрос на получения списка деталей отфильтрованных по опциональному фильтру,
 // или если фильтр не передается возвращает все имеющиеся детали
 type ListPartsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -707,7 +707,7 @@ func (x *ListPartsRequest) GetFilter() *PartsFilter {
 	return nil
 }
 
-// ListPartsResponse ответ на запрос получения деталей по опцианальному фильтру
+// ListPartsResponse ответ на запрос получения деталей по опциональному фильтру
 type ListPartsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// parts список деталей

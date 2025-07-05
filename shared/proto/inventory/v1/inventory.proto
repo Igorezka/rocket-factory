@@ -16,17 +16,17 @@ service InventoryService {
   rpc ListParts(ListPartsRequest) returns (ListPartsResponse);
 }
 
-// Category категория к которй принадлежит деталь
+// Category категория к которой принадлежит деталь
 enum Category {
-  // CATEGORY_UNKNOWN_UNSPECIFIED неизвестная категория
+  // UNKNOWN неизвестная категория
   CATEGORY_UNKNOWN_UNSPECIFIED = 0;
-  // CATEGORY_ENGINE двигатель
+  // ENGINE двигатель
   CATEGORY_ENGINE = 1;
-  // CATEGORY_FUEL топливо
+  // FUEL топливо
   CATEGORY_FUEL = 2;
-  // CATEGORY_PORTHOLE иллюминатор
+  // PORTHOLE иллюминатор
   CATEGORY_PORTHOLE = 3;
-  // CATEGORY_WING крыло
+  // WING крыло
   CATEGORY_WING = 4;
 }
 
@@ -94,7 +94,7 @@ message Part {
   google.protobuf.Timestamp updated_at = 12;
 }
 
-// PartsFilter фильтр с опциональными полями по каторым детали могут быть отфильтрованы
+// PartsFilter фильтр с опциональными полями по которым детали могут быть отфильтрованы
 message PartsFilter {
   // uuids список UUID'ов. Пусто — не фильтруем по UUID
   repeated string uuids = 1;
@@ -116,18 +116,18 @@ message GetPartRequest {
 
 // GetPartResponse ответ на запрос получения детали по уникальному идентификатору
 message GetPartResponse {
-  // part полная игформация о детали
+  // part полная информация о детали
   Part part = 1;
 }
 
-// ListPartsRequest запрос на получения списка деталей отфильрованных по опцианальному фильтру,
+// ListPartsRequest запрос на получения списка деталей отфильтрованных по опциональному фильтру,
 // или если фильтр не передается возвращает все имеющиеся детали
 message ListPartsRequest {
   // filter опциональный фильтр
   PartsFilter filter = 1;
 }
 
-// ListPartsResponse ответ на запрос получения деталей по опцианальному фильтру
+// ListPartsResponse ответ на запрос получения деталей по опциональному фильтру
 message ListPartsResponse {
   // parts список деталей
   repeated Part parts = 1;
