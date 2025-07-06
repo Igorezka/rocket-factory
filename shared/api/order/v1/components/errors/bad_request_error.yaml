@@ -6,8 +6,8 @@ properties:
   code:
     type: integer
     description: HTTP-код ошибки
-    example: 409
+    example: 400
   message:
     type: string
     description: Описание ошибки
-    example: "Conflict request"
+    example: "Bad request"

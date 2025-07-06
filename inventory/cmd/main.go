@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -25,22 +26,120 @@ import (
 
 const grpcPort = 50051
 
-// inventoryService реализует gRPC сервис для работы с деталями
-type inventoryService struct {
-	inventoryV1.UnimplementedInventoryServiceServer
+var ErrPartNotFound = errors.New("part not found")
 
+type InventoryStorage interface {
+	Part(partUuid string) (*inventoryV1.Part, error)
+	Parts(filter *inventoryV1.PartsFilter) ([]*inventoryV1.Part, error)
+}
+
+// InventoryStorageInMem представляет потокобезопасное хранилище данных о деталях
+type InventoryStorageInMem struct {
 	mu    sync.RWMutex
 	parts map[string]*inventoryV1.Part
 }
 
-// GetPart возвращает деталь по UUID
-func (s *inventoryService) GetPart(_ context.Context, req *inventoryV1.GetPartRequest) (*inventoryV1.GetPartResponse, error) {
+// Part возвращает деталь по uuid
+func (s *InventoryStorageInMem) Part(partUuid string) (*inventoryV1.Part, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	part, ok := s.parts[req.GetUuid()]
+	part, ok := s.parts[partUuid]
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "part with UUID %s not found", req.GetUuid())
+		return nil, ErrPartNotFound
+	}
+
+	return part, nil
+}
+
+// Parts возвращает детали отфильтрованные в соответствии с переданным фильтром
+func (s *InventoryStorageInMem) Parts(filter *inventoryV1.PartsFilter) ([]*inventoryV1.Part, error) {
+	s.mu.RLock()
+	parts := s.parts
+	s.mu.RUnlock()
+
+	type filterFunc func(part *inventoryV1.Part) bool
+
+	// Список фильтров, если фильтр не был передан деталь автоматически соответствует ему
+	filters := []filterFunc{
+		func(part *inventoryV1.Part) bool {
+			if len(filter.GetUuids()) == 0 {
+				return true
+			}
+			return slices.Contains(filter.GetUuids(), part.Uuid)
+		},
+		func(part *inventoryV1.Part) bool {
+			if len(filter.GetNames()) == 0 {
+				return true
+			}
+			return slices.Contains(filter.GetNames(), part.Name)
+		},
+		func(part *inventoryV1.Part) bool {
+			if len(filter.GetCategories()) == 0 {
+				return true
+			}
+			return slices.Contains(filter.GetCategories(), part.Category)
+		},
+		func(part *inventoryV1.Part) bool {
+			if len(filter.GetManufacturerCountries()) == 0 {
+				return true
+			}
+			return slices.Contains(filter.GetManufacturerCountries(), part.Manufacturer.Country)
+		},
+		func(part *inventoryV1.Part) bool {
+			if len(filter.GetTags()) == 0 {
+				return true
+			}
+
+			if len(part.Tags) == 0 {
+				return false
+			}
+			for _, tag := range filter.GetTags() {
+				if slices.Contains(part.Tags, tag) {
+					return true
+				}
+			}
+			return false
+		},
+	}
+
+	filteredParts := make([]*inventoryV1.Part, 0)
+	for _, part := range parts {
+		match := false
+		for _, f := range filters {
+			if !f(part) {
+				match = false
+				continue
+			}
+			match = true
+		}
+		if match {
+			filteredParts = append(filteredParts, part)
+		}
+	}
+
+	if len(filteredParts) == 0 {
+		return nil, ErrPartNotFound
+	}
+
+	return filteredParts, nil
+}
+
+// inventoryService реализует gRPC сервис для работы с деталями
+type inventoryService struct {
+	inventoryV1.UnimplementedInventoryServiceServer
+	storage InventoryStorage
+}
+
+// GetPart возвращает деталь по UUID
+func (s *inventoryService) GetPart(_ context.Context, req *inventoryV1.GetPartRequest) (*inventoryV1.GetPartResponse, error) {
+	part, err := s.storage.Part(req.GetUuid())
+	if err != nil {
+		if errors.Is(err, ErrPartNotFound) {
+			return nil, status.Errorf(codes.NotFound, "part with UUID %s not found", req.GetUuid())
+		}
+
+		return nil, status.Error(codes.Internal, "internal error")
 	}
 
 	return &inventoryV1.GetPartResponse{
@@ -51,67 +150,17 @@ func (s *inventoryService) GetPart(_ context.Context, req *inventoryV1.GetPartRe
 // ListParts возвращает список деталей соответствующих переданным фильтрам
 // или возвращает все детали если фильтры не переданы
 func (s *inventoryService) ListParts(_ context.Context, req *inventoryV1.ListPartsRequest) (*inventoryV1.ListPartsResponse, error) {
-	s.mu.RLock()
-	parts := s.parts
-	s.mu.RUnlock()
-
-	var data []*inventoryV1.Part
-
-	// Бежим по всем деталям и проверяем их на соответствие фильтрам
-	for _, part := range parts {
-		// Для лучшей производительности вместо slices.Contains можно использовать просто for
-		if len(req.GetFilter().GetUuids()) > 0 && !slices.Contains(req.GetFilter().GetUuids(), part.Uuid) {
-			continue
+	parts, err := s.storage.Parts(req.GetFilter())
+	if err != nil {
+		if errors.Is(err, ErrPartNotFound) {
+			return nil, status.Error(codes.NotFound, "no parts found")
 		}
 
-		if len(req.GetFilter().GetNames()) > 0 && !slices.Contains(req.GetFilter().GetNames(), part.Name) {
-			continue
-		}
-
-		if len(req.GetFilter().GetCategories()) > 0 &&
-			!slices.Contains(req.GetFilter().GetCategories(), part.Category) {
-			continue
-		}
-
-		if len(req.GetFilter().GetManufacturerCountries()) > 0 &&
-			!slices.Contains(req.GetFilter().GetManufacturerCountries(), part.Manufacturer.Country) {
-			continue
-		}
-
-		if len(req.GetFilter().GetTags()) > 0 {
-			// Отсеиваем если у детали нет тегов
-			if len(part.Tags) == 0 {
-				continue
-			}
-
-			// Флаг соответствия
-			contains := true
-
-			// Бежим по всем переданным тегам и проверяем их наличие у детали, если тега нет прерываем цикл
-			// и устанавливаем отрицательный флаг
-			for _, tag := range req.GetFilter().GetTags() {
-				if !slices.Contains(part.Tags, tag) {
-					contains = false
-					break
-				}
-			}
-
-			// Проверяем флаг
-			if !contains {
-				continue
-			}
-		}
-
-		// добавляем деталь в слайс соответствующих деталей
-		data = append(data, part)
-	}
-
-	if len(data) == 0 {
-		return nil, status.Errorf(codes.NotFound, "no parts found")
+		return nil, status.Error(codes.Internal, "internal error")
 	}
 
 	return &inventoryV1.ListPartsResponse{
-		Parts: data,
+		Parts: parts,
 	}, nil
 }
 
@@ -126,12 +175,17 @@ func main() {
 		}
 	}()
 
+	// Создаем хранилище
+	storage := &InventoryStorageInMem{
+		parts: fillTestData(4),
+	}
+
 	// Создаем gRPC сервер
 	s := grpc.NewServer()
 
 	// Регистрируем сервис и заполняем тестовые детали
 	service := &inventoryService{
-		parts: fillTestData(4),
+		storage: storage,
 	}
 
 	inventoryV1.RegisterInventoryServiceServer(s, service)

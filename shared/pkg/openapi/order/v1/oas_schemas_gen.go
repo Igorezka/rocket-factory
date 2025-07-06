@@ -12,6 +12,36 @@ func (s *GenericErrorStatusCode) Error() string {
 	return fmt.Sprintf("code %d: %+v", s.StatusCode, s.Response)
 }
 
+// Ref: #/components/schemas/bad_request_error
+type BadRequestError struct {
+	// HTTP-код ошибки.
+	Code int `json:"code"`
+	// Описание ошибки.
+	Message string `json:"message"`
+}
+
+// GetCode returns the value of Code.
+func (s *BadRequestError) GetCode() int {
+	return s.Code
+}
+
+// GetMessage returns the value of Message.
+func (s *BadRequestError) GetMessage() string {
+	return s.Message
+}
+
+// SetCode sets the value of Code.
+func (s *BadRequestError) SetCode(val int) {
+	s.Code = val
+}
+
+// SetMessage sets the value of Message.
+func (s *BadRequestError) SetMessage(val string) {
+	s.Message = val
+}
+
+func (*BadRequestError) createOrderRes() {}
+
 // CancelOrderNoContent is response for CancelOrder operation.
 type CancelOrderNoContent struct{}
 
@@ -46,6 +76,7 @@ func (s *ConflictError) SetMessage(val string) {
 }
 
 func (*ConflictError) cancelOrderRes() {}
+func (*ConflictError) payOrderRes()    {}
 
 // Ref: #/components/schemas/create_order_request
 type CreateOrderRequest struct {

@@ -19,6 +19,12 @@ post:
         application/json:
           schema:
             $ref: ../components/pay_order_response.yaml
+    '409':
+      description: Заказ уже оплачен
+      content:
+        application/json:
+          schema:
+            $ref: ../components/errors/conflict_error.yaml
     '404':
       description: Заказ не найден
       content:

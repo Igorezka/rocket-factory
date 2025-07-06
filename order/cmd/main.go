@@ -35,34 +35,42 @@ const (
 	paymentServerAddress   = "localhost:50052"
 )
 
-// OrderStorage представляет потокобезопасное хранилище данных о заказах
-type OrderStorage struct {
+var ErrOrderNotFound = errors.New("order not found")
+
+type OrderStorage interface {
+	GetOrder(orderUuid string) (*orderV1.OrderDto, error)
+	CreateOrder(order *orderV1.OrderDto)
+	UpdateOrder(order *orderV1.OrderDto)
+}
+
+// OrderStorageInMem представляет потокобезопасное хранилище данных о заказах
+type OrderStorageInMem struct {
 	mu     sync.RWMutex
 	orders map[string]*orderV1.OrderDto
 }
 
 // NewOrderStorage создает новое хранилище данных о заказах
-func NewOrderStorage() *OrderStorage {
-	return &OrderStorage{
+func NewOrderStorage() OrderStorage {
+	return &OrderStorageInMem{
 		orders: make(map[string]*orderV1.OrderDto),
 	}
 }
 
 // GetOrder возвращает информацию о заказе по uuid из хранилища
-func (s *OrderStorage) GetOrder(orderUuid string) *orderV1.OrderDto {
+func (s *OrderStorageInMem) GetOrder(orderUuid string) (*orderV1.OrderDto, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	order, ok := s.orders[orderUuid]
 	if !ok {
-		return nil
+		return nil, ErrOrderNotFound
 	}
 
-	return order
+	return order, nil
 }
 
 // CreateOrder сохраняет заказ в хранилище
-func (s *OrderStorage) CreateOrder(order *orderV1.OrderDto) {
+func (s *OrderStorageInMem) CreateOrder(order *orderV1.OrderDto) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -70,7 +78,7 @@ func (s *OrderStorage) CreateOrder(order *orderV1.OrderDto) {
 }
 
 // UpdateOrder обновляет заказ в хранилище
-func (s *OrderStorage) UpdateOrder(order *orderV1.OrderDto) {
+func (s *OrderStorageInMem) UpdateOrder(order *orderV1.OrderDto) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -79,14 +87,14 @@ func (s *OrderStorage) UpdateOrder(order *orderV1.OrderDto) {
 
 // OrderHandler реализует интерфейс orderV1.Handler для обработки запросов к API заказов
 type OrderHandler struct {
-	storage         *OrderStorage
+	storage         OrderStorage
 	inventoryClient inventoryV1.InventoryServiceClient
 	paymentClient   paymentV1.PaymentServiceClient
 }
 
-// NewOrderHandler создает новый обработчик запросов к API погоды
+// NewOrderHandler создает новый обработчик запросов к API заказов
 func NewOrderHandler(
-	storage *OrderStorage,
+	storage OrderStorage,
 	inventoryClient inventoryV1.InventoryServiceClient,
 	paymentClient paymentV1.PaymentServiceClient,
 ) *OrderHandler {
@@ -99,11 +107,18 @@ func NewOrderHandler(
 
 // GetOrderByUUID обрабатывает запрос на получение данных о заказе по uuid
 func (h *OrderHandler) GetOrderByUUID(_ context.Context, params orderV1.GetOrderByUUIDParams) (orderV1.GetOrderByUUIDRes, error) {
-	order := h.storage.GetOrder(params.OrderUUID)
-	if order == nil {
-		return &orderV1.NotFoundError{
-			Code:    http.StatusNotFound,
-			Message: "Order by UUID " + params.OrderUUID + " not found",
+	order, err := h.storage.GetOrder(params.OrderUUID)
+	if err != nil {
+		if errors.Is(err, ErrOrderNotFound) {
+			return &orderV1.NotFoundError{
+				Code:    http.StatusNotFound,
+				Message: "Order by UUID " + params.OrderUUID + " not found",
+			}, nil
+		}
+
+		return &orderV1.InternalServerError{
+			Code:    http.StatusInternalServerError,
+			Message: "Internal Server Error",
 		}, nil
 	}
 
@@ -112,6 +127,17 @@ func (h *OrderHandler) GetOrderByUUID(_ context.Context, params orderV1.GetOrder
 
 // CreateOrder обрабатывает запрос на создание заказа с указанием необходимых запчастей
 func (h *OrderHandler) CreateOrder(ctx context.Context, req *orderV1.CreateOrderRequest) (orderV1.CreateOrderRes, error) {
+	if len(req.PartUuids) == 0 {
+		return &orderV1.InternalServerError{
+			Code:    http.StatusBadRequest,
+			Message: "Details not provided",
+		}, nil
+	}
+
+	// Создаем таймаут на обращение
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
 	// Получаем список запчастей по uuid
 	res, err := h.inventoryClient.ListParts(ctx, &inventoryV1.ListPartsRequest{
 		Filter: &inventoryV1.PartsFilter{
@@ -166,11 +192,25 @@ func (h *OrderHandler) CreateOrder(ctx context.Context, req *orderV1.CreateOrder
 
 // PayOrder обрабатывает запрос на оплату заказа
 func (h *OrderHandler) PayOrder(ctx context.Context, req *orderV1.PayOrderRequest, params orderV1.PayOrderParams) (orderV1.PayOrderRes, error) {
-	order := h.storage.GetOrder(params.OrderUUID)
-	if order == nil {
+	order, err := h.storage.GetOrder(params.OrderUUID)
+	if err != nil {
+		if errors.Is(err, ErrOrderNotFound) {
+			return &orderV1.NotFoundError{
+				Code:    http.StatusNotFound,
+				Message: "Order by UUID " + params.OrderUUID + " not found",
+			}, nil
+		}
+
+		return &orderV1.InternalServerError{
+			Code:    http.StatusInternalServerError,
+			Message: "Internal Server Error",
+		}, nil
+	}
+
+	if order.Status == orderV1.OrderStatusPAID {
 		return &orderV1.NotFoundError{
-			Code:    http.StatusNotFound,
-			Message: "Order by UUID " + params.OrderUUID + " not found",
+			Code:    http.StatusConflict,
+			Message: "Order UUID " + params.OrderUUID + " already paid",
 		}, nil
 	}
 
@@ -201,11 +241,25 @@ func (h *OrderHandler) PayOrder(ctx context.Context, req *orderV1.PayOrderReques
 
 // CancelOrder обрабатывает запрос на отмену заказа
 func (h *OrderHandler) CancelOrder(_ context.Context, params orderV1.CancelOrderParams) (orderV1.CancelOrderRes, error) {
-	order := h.storage.GetOrder(params.OrderUUID)
-	if order == nil {
-		return &orderV1.NotFoundError{
-			Code:    http.StatusNotFound,
-			Message: "Order by UUID " + params.OrderUUID + " not found",
+	order, err := h.storage.GetOrder(params.OrderUUID)
+	if err != nil {
+		if errors.Is(err, ErrOrderNotFound) {
+			return &orderV1.NotFoundError{
+				Code:    http.StatusNotFound,
+				Message: "Order by UUID " + params.OrderUUID + " not found",
+			}, nil
+		}
+
+		return &orderV1.InternalServerError{
+			Code:    http.StatusInternalServerError,
+			Message: "Internal Server Error",
+		}, nil
+	}
+
+	if order.Status == orderV1.OrderStatusCANCELLED {
+		return &orderV1.ConflictError{
+			Code:    http.StatusConflict,
+			Message: "The order has already been cancelled",
 		}, nil
 	}
 
@@ -235,7 +289,7 @@ func (h *OrderHandler) NewError(_ context.Context, err error) *orderV1.GenericEr
 }
 
 func main() {
-	// Создаем хранилище для данных о погоде
+	// Создаем хранилище для данных о заказах
 	storage := NewOrderStorage()
 
 	// Создаем клиента к inventory service
@@ -272,7 +326,7 @@ func main() {
 
 	paymentClient := paymentV1.NewPaymentServiceClient(paymentConn)
 
-	// Создаем обработчик API погоды
+	// Создаем обработчик API заказов
 	orderHandler := NewOrderHandler(storage, inventoryClient, paymentClient)
 
 	orderServer, err := orderV1.NewServer(orderHandler)
