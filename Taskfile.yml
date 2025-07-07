@@ -29,7 +29,7 @@ vars:
 
   OPEN_API_ORDER_V1_BASE: '{{.ROOT_DIR}}/shared/api/order/v1/order.openapi.yaml'
   OPEN_API_ORDER_V1_BUNDLE: '{{.ROOT_DIR}}/shared/api/bundles/order.openapi.v1.bundle.yaml'
-  OPEN_API_FILES: '{{.ROOT_DIR}}/shared/api/bundles'
+  OPEN_API_FILES: '{{.ROOT_DIR}}/shared/api/'
 
   MODULES: assembly inventory order payment platform iam notification
 
@@ -215,7 +215,6 @@ tasks:
     desc: "Генерация Go-кода из всех OpenAPI-деклараций с x-ogen"
     deps: [ ogen:install, yq:install ]
     cmds:
-      - task: redocly-cli:bundle
       - |
         find {{.OPEN_API_FILES}} -name '*.yaml' -o -name '*.yml' | while read -r file; do
           if [ -f "$file" ] && grep -q 'x-ogen:' "$file"; then

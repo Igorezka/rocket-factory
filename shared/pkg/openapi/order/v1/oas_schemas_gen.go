@@ -12,7 +12,7 @@ func (s *GenericErrorStatusCode) Error() string {
 	return fmt.Sprintf("code %d: %+v", s.StatusCode, s.Response)
 }
 
-// Ref: #/components/schemas/bad_request_error
+// Ref: #
 type BadRequestError struct {
 	// HTTP-код ошибки.
 	Code int `json:"code"`
@@ -47,7 +47,7 @@ type CancelOrderNoContent struct{}
 
 func (*CancelOrderNoContent) cancelOrderRes() {}
 
-// Ref: #/components/schemas/conflict_error
+// Ref: #
 type ConflictError struct {
 	// HTTP-код ошибки.
 	Code int `json:"code"`
@@ -78,7 +78,7 @@ func (s *ConflictError) SetMessage(val string) {
 func (*ConflictError) cancelOrderRes() {}
 func (*ConflictError) payOrderRes()    {}
 
-// Ref: #/components/schemas/create_order_request
+// Ref: #
 type CreateOrderRequest struct {
 	// UUID пользователя.
 	UserUUID string `json:"user_uuid"`
@@ -106,7 +106,7 @@ func (s *CreateOrderRequest) SetPartUuids(val []string) {
 	s.PartUuids = val
 }
 
-// Ref: #/components/schemas/create_order_response
+// Ref: #
 type CreateOrderResponse struct {
 	// Уникальный идентификатор заказа.
 	OrderUUID string `json:"order_uuid"`
@@ -136,7 +136,7 @@ func (s *CreateOrderResponse) SetTotalPrice(val float64) {
 
 func (*CreateOrderResponse) createOrderRes() {}
 
-// Ref: #/components/schemas/generic_error
+// Ref: #
 type GenericError struct {
 	// HTTP-код ошибки.
 	Code OptInt `json:"code"`
@@ -190,7 +190,7 @@ func (s *GenericErrorStatusCode) SetResponse(val GenericError) {
 	s.Response = val
 }
 
-// Ref: #/components/schemas/internal_server_error
+// Ref: #
 type InternalServerError struct {
 	// HTTP-код ошибки.
 	Code int `json:"code"`
@@ -223,7 +223,7 @@ func (*InternalServerError) createOrderRes()    {}
 func (*InternalServerError) getOrderByUUIDRes() {}
 func (*InternalServerError) payOrderRes()       {}
 
-// Ref: #/components/schemas/not_found_error
+// Ref: #
 type NotFoundError struct {
 	// HTTP-код ошибки.
 	Code int `json:"code"`
@@ -394,7 +394,7 @@ func (o OptString) Or(d string) string {
 	return d
 }
 
-// Ref: #/components/schemas/order_dto
+// Ref: #
 type OrderDto struct {
 	// Уникальный идентификатор заказа.
 	OrderUUID string `json:"order_uuid"`
@@ -482,7 +482,7 @@ func (s *OrderDto) SetStatus(val OrderStatus) {
 
 func (*OrderDto) getOrderByUUIDRes() {}
 
-// Ref: #/components/schemas/order_status
+// Ref: #
 type OrderStatus string
 
 const (
@@ -531,7 +531,7 @@ func (s *OrderStatus) UnmarshalText(data []byte) error {
 	}
 }
 
-// Ref: #/components/schemas/pay_order_request
+// Ref: #
 type PayOrderRequest struct {
 	PaymentMethod PaymentMethod `json:"payment_method"`
 }
@@ -546,7 +546,7 @@ func (s *PayOrderRequest) SetPaymentMethod(val PaymentMethod) {
 	s.PaymentMethod = val
 }
 
-// Ref: #/components/schemas/pay_order_response
+// Ref: #
 type PayOrderResponse struct {
 	// UUID транзакции оплаты.
 	TransactionUUID string `json:"transaction_uuid"`
@@ -564,7 +564,7 @@ func (s *PayOrderResponse) SetTransactionUUID(val string) {
 
 func (*PayOrderResponse) payOrderRes() {}
 
-// Ref: #/components/schemas/payment_method
+// Ref: #
 type PaymentMethod string
 
 const (
