@@ -1,0 +1,13 @@
+type: object
+required:
+  - code
+  - message
+properties:
+  code:
+    type: integer
+    description: HTTP-код ошибки
+    example: 404
+  message:
+    type: string
+    description: Описание ошибки
+    example: "Order by UUID 0fd4e862-8fbd-4b71-9b92-67a692c19f45 not found"

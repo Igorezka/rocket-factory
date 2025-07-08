@@ -1,0 +1,17 @@
+type: object
+required:
+  - user_uuid
+  - part_uuids
+properties:
+  user_uuid:
+    type: string
+    description: UUID пользователя
+    minLength: 1
+    maxLength: 100
+    example: "8fd4e862-8fbd-4b71-9b92-67a692c19f45"
+  part_uuids:
+    type: array
+    description: Список UUID деталей
+    items:
+      type: string
+    example: [ "6fd4e862-8fbd-4b71-9b92-67a692c19f45", "7fd4e862-8fbd-4b71-9b92-67a692c19f45" ]

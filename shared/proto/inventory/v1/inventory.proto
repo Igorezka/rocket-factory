@@ -1,0 +1,135 @@
+syntax = "proto3";
+
+// Package inventory.v1 содержит API для работы с деталями ракет
+package inventory.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/Igorezka/rocket-factory/shared/pkg/proto/inventory/v1;inventory_v1";
+
+// InventoryService предоставляет API для работы с деталями ракет
+service InventoryService {
+  // GetPart возвращает деталь по уникальному идентификатору
+  rpc GetPart(GetPartRequest) returns (GetPartResponse);
+
+  // ListParts возвращает список деталей отфильтрованных по переданному фильтру
+  rpc ListParts(ListPartsRequest) returns (ListPartsResponse);
+}
+
+// Category категория к которой принадлежит деталь
+enum Category {
+  // UNKNOWN неизвестная категория
+  CATEGORY_UNKNOWN_UNSPECIFIED = 0;
+  // ENGINE двигатель
+  CATEGORY_ENGINE = 1;
+  // FUEL топливо
+  CATEGORY_FUEL = 2;
+  // PORTHOLE иллюминатор
+  CATEGORY_PORTHOLE = 3;
+  // WING крыло
+  CATEGORY_WING = 4;
+}
+
+// Dimensions размеры детали
+message Dimensions {
+  // length длина детали в см
+  double length = 1;
+  // width ширина детали в см
+  double width = 2;
+  // height высота детали в см
+  double height = 3;
+  // weight вес детали в кг
+  double weight = 4;
+}
+
+// Manufacturer информация о производителе детали
+message Manufacturer {
+  // name название производителя
+  string name = 1;
+  // country страна производителя
+  string country = 2;
+  // website сайт производителя
+  string website = 3;
+}
+
+// Value тип значения поля metadata
+message Value {
+  oneof value_type {
+    // string_value строковое значение
+    string string_value = 1;
+    // int64_value целое значение
+    int64 int64_value = 2;
+    // double_value дробное значение
+    double double_value = 3;
+    // bool_value Логическое значение
+    bool bool_value = 4;
+  }
+}
+
+// Part полная информация о детали
+message Part {
+  // uuid уникальный идентификатор детали
+  string uuid = 1;
+  // name название детали
+  string name = 2;
+  // description описание детали
+  string description = 3;
+  // price цена за единицу
+  double price = 4;
+  // stock_quantity количество на складе
+  int64 stock_quantity = 5;
+  // category категория к которой принадлежит деталь
+  Category category = 6;
+  // dimensions размеры детали
+  Dimensions dimensions = 7;
+  // manufacturer информация о производителе детали
+  Manufacturer manufacturer = 8;
+  // tags теги для быстрого поиска
+  repeated string tags = 9;
+  // metadata гибкие метаданные
+  map<string, Value> metadata = 10;
+  // created_at дата создания
+  google.protobuf.Timestamp created_at = 11;
+  // updated_at дата последнего изменения
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+// PartsFilter фильтр с опциональными полями по которым детали могут быть отфильтрованы
+message PartsFilter {
+  // uuids список UUID'ов. Пусто — не фильтруем по UUID
+  repeated string uuids = 1;
+  // names список имён. Пусто — не фильтруем по имени
+  repeated string names = 2;
+  // categories список категорий. Пусто — не фильтруем по категории
+  repeated Category categories = 3;
+  // manufacturer_countries список стран производителей. Пусто — не фильтруем по стране
+  repeated string manufacturer_countries = 4;
+  // tags список тегов. Пусто — не фильтруем по тегам
+  repeated string tags = 5;
+}
+
+// GetPartRequest запрос на получение детали по уникальному идентификатору
+message GetPartRequest {
+  // uuid идентификатор детали
+  string uuid = 1;
+}
+
+// GetPartResponse ответ на запрос получения детали по уникальному идентификатору
+message GetPartResponse {
+  // part полная информация о детали
+  Part part = 1;
+}
+
+// ListPartsRequest запрос на получения списка деталей отфильтрованных по опциональному фильтру,
+// или если фильтр не передается возвращает все имеющиеся детали
+message ListPartsRequest {
+  // filter опциональный фильтр
+  PartsFilter filter = 1;
+}
+
+// ListPartsResponse ответ на запрос получения деталей по опциональному фильтру
+message ListPartsResponse {
+  // parts список деталей
+  repeated Part parts = 1;
+}
+

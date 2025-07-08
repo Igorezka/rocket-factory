@@ -1,0 +1,9 @@
+name: order_uuid
+in: path
+required: true
+description: UUID заказа, для которого запрашиваются или обновляются данные
+schema:
+  type: string
+  minLength: 1
+  maxLength: 100
+  example: "0fd4e862-8fbd-4b71-9b92-67a692c19f45"
