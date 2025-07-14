@@ -1,8 +1,9 @@
 package inventory
 
 import (
-	"github.com/google/uuid"
 	"slices"
+
+	"github.com/google/uuid"
 
 	"github.com/Igorezka/rocket-factory/inventory/internal/model"
 	"github.com/Igorezka/rocket-factory/inventory/internal/repository/converter"
