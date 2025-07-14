@@ -1,3 +1,4 @@
+![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/Igorezka/63e8befdd35f9d8a520926772212e73d/raw/coverage.json)
 # Rocket factory
 
 Этот репозиторий содержит проект из курса [Микросервисы, как в BigTech 2.0](https://olezhek28.courses/microservices) от [Олега Козырева](http://t.me/olezhek28go).

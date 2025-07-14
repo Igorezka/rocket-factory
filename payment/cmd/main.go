@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net"
@@ -9,31 +8,15 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	paymentV1 "github.com/Igorezka/rocket-factory/shared/pkg/proto/payment/v1"
+	paymentV1API "github.com/Igorezka/rocket-factory/payment/internal/api/payment/v1"
+	paymentService "github.com/Igorezka/rocket-factory/payment/internal/service/payment"
+	generatedPaymentV1 "github.com/Igorezka/rocket-factory/shared/pkg/proto/payment/v1"
 )
 
 const grpcPort = 50052
-
-// inventoryService реализует gRPC сервис для работы с оплатой
-type paymentService struct {
-	paymentV1.UnimplementedPaymentServiceServer
-}
-
-// PayOrder производит оплату и возвращает uuid транзакции
-func (s *paymentService) PayOrder(_ context.Context, _ *paymentV1.PayOrderRequest) (*paymentV1.PayOrderResponse, error) {
-	// Генерируем uuid
-	u := uuid.NewString()
-
-	log.Printf("Оплата прошла успешно, transaction_uuid: %s\n", u)
-
-	return &paymentV1.PayOrderResponse{
-		TransactionUuid: u,
-	}, nil
-}
 
 func main() {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
@@ -49,9 +32,11 @@ func main() {
 	// Создаем gRPC сервер
 	s := grpc.NewServer()
 
-	service := &paymentService{}
+	// Регистрируем наш сервис
+	service := paymentService.NewService()
+	api := paymentV1API.NewAPI(service)
 
-	paymentV1.RegisterPaymentServiceServer(s, service)
+	generatedPaymentV1.RegisterPaymentServiceServer(s, api)
 
 	// Включаем рефлексию для отладки
 	reflection.Register(s)
