@@ -1,8 +1,8 @@
 package inventory
 
 import (
-	"github.com/brianvoe/gofakeit/v7"
 	"github.com/google/uuid"
+	"slices"
 
 	"github.com/Igorezka/rocket-factory/inventory/internal/model"
 	"github.com/Igorezka/rocket-factory/inventory/internal/repository/converter"
@@ -14,15 +14,23 @@ func (s *RepositorySuite) TestList() {
 	}
 
 	var (
-		filter        model.PartsFilter
+		uuids         []string
+		names         []string
+		categories    []model.Category
+		countries     []string
 		expectedParts []model.Part
 	)
 
 	for _, part := range s.generatedParts {
-		if gofakeit.Bool() {
-			tmp := converter.PartToModel(part)
-			expectedParts = append(expectedParts, tmp)
-			filter.Names = append(filter.Names, tmp.Name)
+		tmp := converter.PartToModel(part)
+		expectedParts = append(expectedParts, tmp)
+		uuids = append(uuids, tmp.Uuid)
+		names = append(names, tmp.Name)
+		if !slices.Contains(categories, tmp.Category) {
+			categories = append(categories, tmp.Category)
+		}
+		if !slices.Contains(countries, tmp.Manufacturer.Country) {
+			countries = append(countries, tmp.Manufacturer.Country)
 		}
 	}
 
@@ -33,10 +41,40 @@ func (s *RepositorySuite) TestList() {
 		err  error
 	}{
 		{
-			name: "success",
+			name: "success by uuids case",
 			args: args{
 				filter: model.PartsFilter{
-					Names: filter.Names,
+					Uuids: uuids,
+				},
+			},
+			want: expectedParts,
+			err:  nil,
+		},
+		{
+			name: "success by names case",
+			args: args{
+				filter: model.PartsFilter{
+					Names: names,
+				},
+			},
+			want: expectedParts,
+			err:  nil,
+		},
+		{
+			name: "success by categories case",
+			args: args{
+				filter: model.PartsFilter{
+					Categories: categories,
+				},
+			},
+			want: expectedParts,
+			err:  nil,
+		},
+		{
+			name: "success by countries case",
+			args: args{
+				filter: model.PartsFilter{
+					ManufacturerCountries: countries,
 				},
 			},
 			want: expectedParts,
