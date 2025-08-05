@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: OrderService API
-  version: 1.0.0
+  version: 1.0.2
   description: API для работы с заказами
 x-ogen:
   target: ./shared/pkg/openapi/order/v1
